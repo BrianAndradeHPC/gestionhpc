@@ -3,7 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <title>" "</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
+function mostrarNotificacion(mensaje) {
+  const box = document.createElement("div");
+  box.className = "notification";
+  box.textContent = mensaje;
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 3000);
+}
+
+</script>
   <style>
     body {
       margin: 0;
@@ -291,6 +300,15 @@
       guardarMovimiento();
     }
   });
+
+function mostrarNotificacion(mensaje) {
+  const box = document.createElement("div");
+  box.className = "notification";
+  box.textContent = mensaje;
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 3000);
+}
+
 </script>
 </body>
 </html>
