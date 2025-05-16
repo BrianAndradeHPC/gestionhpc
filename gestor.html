@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>" "</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f4f4f4;
+    }
+
+    header {
+      background-color: white;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    header img {
+      height: 60px;
+      vertical-align: middle;
+    }
+
+    header h1 {
+      display: inline-block;
+      margin: 0 0 0 15px;
+      font-size: 1.5em;
+      color: #0073e6;
+      vertical-align: middle;
+    }
+
+    .card {
+      max-width: 900px;
+      margin: 40px auto;
+      background-color: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    h2, h3 {
+      color: #0073e6;
+      text-align: center;
+    }
+
+    .btn {
+      background-color: #0097A7;
+      color: white;
+      font-weight: bold;
+      border: none;
+      padding: 12px;
+      margin-top: 10px;
+      width: 100%;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      background-color: #007f91;
+    }
+
+    input, select {
+      margin: 6px 0;
+      padding: 10px;
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 1em;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background: white;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #e3e3e3;
+    }
+
+    .notification {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #4caf50;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 5px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      z-index: 9999;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <img src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExanE4dHp5NTJidmdyMXoxYnkwYTdvNTJlYmFmZ2JvdHlzamh5cmZtaiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/y7wQYAhd0v08JvanFj/giphy.gif" alt="Logo HPC" />
+  <h1><span id="turnoHeader" style="font-weight: normal;"></span></h1>
+</header>
+
+<div class="card" id="pantallaTurno">
+  <h2>Seleccioná tu turno</h2>
+  <button class="btn" onclick="seleccionarTurno('Mañana')">Turno Mañana</button>
+  <button class="btn" onclick="seleccionarTurno('Tarde')">Turno Tarde</button>
+  <button class="btn" onclick="seleccionarTurno('Noche')">Turno Noche</button>
+</div>
+
+<div class="card" id="app" style="display:none;">
+  <h2>Registrar Movimiento</h2>
+  <label>Tipo:</label>
+  <select id="tipo"><option>Entrada</option><option>Salida</option></select>
+
+  <label>Código:</label>
+  <input type="text" id="codigo" oninput="buscarNombre()">
+  <label>Nombre:</label>
+  <input type="text" id="nombre" readonly>
+
+  <label>Categoría:</label>
+  <select id="categoria" onchange="cargarSectores()">
+    <option value="">Seleccionar</option>
+    <option value="Higiene">Higiene</option>
+    <option value="Enfermería">Enfermería</option>
+  </select>
+
+  <label>Sector:</label>
+  <select id="sector"><option value="">Seleccionar</option></select>
+
+  <label>Cantidad:</label>
+  <input type="number" id="cantidad" min="1">
+
+  <button class="btn" onclick="guardarMovimiento()">Guardar Movimiento</button>
+  <button class="btn" onclick="descargarExcel()">Descargar Excel</button>
+
+  <h3>Historial</h3>
+  <table id="tablaHistorial"><thead><tr>
+    <th>Fecha</th><th>Tipo</th><th>Código</th><th>Nombre</th>
+    <th>Categoría</th><th>Sector</th><th>Cantidad</th><th>Turno</th>
+  </tr></thead><tbody></tbody></table>
+
+  <h3>Resumen</h3>
+  <table id="tablaResumen"><thead><tr>
+    <th>Producto</th><th>Turno</th><th>Entradas</th><th>Salidas</th>
+  </tr></thead><tbody></tbody></table>
+</div>
+
+<script>
+  let movimientos = [];
+  let turnoSeleccionado = "";
+  const productos = {"60007":"BCHN","60008":"BGN"};
+  const sectores = {
+    Higiene: ["Carro 0", "Carro 1", "Carro 2", "Carro 3", "Carro 4", "Carro 5", "Carro 6"],
+    Enfermería: ["2°A", "2°B", "2°C", "2°D", "2°E", "UCI"]
+  };
+
+  function seleccionarTurno(turno) {
+    turnoSeleccionado = turno;
+    document.getElementById("pantallaTurno").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    document.getElementById("turnoHeader").textContent = "– Turno: " + turno;
+    const guardado = localStorage.getItem("movimientos");
+    if (guardado) {
+      movimientos = JSON.parse(guardado);
+      actualizarTabla();
+      actualizarResumen();
+    }
+  }
+
+  function buscarNombre() {
+    const cod = document.getElementById("codigo").value.trim().toUpperCase();
+    document.getElementById("nombre").value = productos[cod] || "";
+  }
+
+  function cargarSectores() {
+    const categoria = document.getElementById("categoria").value;
+    const sector = document.getElementById("sector");
+    sector.innerHTML = "<option value=''>Seleccionar</option>";
+    if (sectores[categoria]) {
+      sectores[categoria].forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s;
+        opt.textContent = s;
+        sector.appendChild(opt);
+      });
+    }
+  }
+
+  function guardarMovimiento() {
+  const m = {
+    tipo: document.getElementById("tipo").value,
+    codigo: document.getElementById("codigo").value.toUpperCase(),
+    nombre: document.getElementById("nombre").value,
+    categoria: document.getElementById("categoria").value,
+    sector: document.getElementById("sector").value,
+    cantidad: document.getElementById("cantidad").value,
+    turno: turnoSeleccionado
+  };
+
+  // Enviar a Google Sheets
+  fetch("https://script.google.com/macros/s/AKfycby6RfU0JHFU0mr1p1y0DlCaR9T1mErWIm79WLg2Gv8hEn6TrZ4saDBmk-Ou9GNCvFPg/exec", {
+    method: "POST",
+    body: JSON.stringify(m),
+    headers: { "Content-Type": "application/json" }
+  })
+  .then(res => res.text())
+  .then(() => {
+    // También guardar localmente y actualizar tablas
+    movimientos.push({
+      Fecha: new Date().toLocaleDateString(),
+      Tipo: m.tipo,
+      Código: m.codigo,
+      Nombre: m.nombre,
+      Categoría: m.categoria,
+      Sector: m.sector,
+      Cantidad: m.cantidad,
+      Turno: m.turno
+    });
+    localStorage.setItem("movimientos", JSON.stringify(movimientos));
+    actualizarTabla();
+    actualizarResumen();
+    mostrarNotificacion("✔ Guardado en Google Sheets");
+  })
+  .catch(() => mostrarNotificacion("❌ Error al guardar en Sheets"));
+}
+
+  function actualizarTabla() {
+    const body = document.querySelector("#tablaHistorial tbody");
+    body.innerHTML = "";
+    movimientos.forEach(m => {
+      const row = document.createElement("tr");
+      row.style.background = m.Tipo === "Entrada" ? "#dfffe0" : "#ffe0e0";
+      row.innerHTML = `<td>${m.Fecha}</td><td>${m.Tipo}</td><td>${m.Código}</td><td>${m.Nombre}</td>
+        <td>${m.Categoría}</td><td>${m.Sector}</td><td>${m.Cantidad}</td><td>${m.Turno}</td>`;
+      body.appendChild(row);
+    });
+  }
+
+  function actualizarResumen() {
+    const resumen = {};
+    movimientos.forEach(m => {
+      const key = `${m.Nombre}__${m.Turno}`;
+      if (!resumen[key]) resumen[key] = { producto: m.Nombre, turno: m.Turno, entradas: 0, salidas: 0 };
+      if (m.Tipo === "Entrada") resumen[key].entradas += parseInt(m.Cantidad);
+      if (m.Tipo === "Salida") resumen[key].salidas += parseInt(m.Cantidad);
+    });
+    const body = document.querySelector("#tablaResumen tbody");
+    body.innerHTML = "";
+    Object.values(resumen).forEach(r => {
+      const row = document.createElement("tr");
+      row.innerHTML = `<td>${r.producto}</td><td>${r.turno}</td><td>${r.entradas}</td><td>${r.salidas}</td>`;
+      body.appendChild(row);
+    });
+  }
+
+  function descargarExcel() {
+    if (movimientos.length === 0) return alert("❌ No hay movimientos guardados.");
+    const headers = ["Fecha", "Tipo", "Código", "Nombre", "Categoría", "Sector", "Cantidad", "Turno"];
+    const wb = XLSX.utils.book_new();
+    ["Mañana", "Tarde", "Noche"].forEach(turno => {
+      const datos = movimientos.filter(m => m.Turno === turno);
+      if (datos.length > 0) {
+        const ws = XLSX.utils.json_to_sheet(datos, { header: headers });
+        XLSX.utils.book_append_sheet(wb, ws, turno);
+      }
+    });
+    XLSX.writeFile(wb, "registro_por_turno.xlsx");
+  }
+
+  document.addEventListener("keydown", function (e) {
+    const campos = Array.from(document.querySelectorAll("input, select"));
+    const index = campos.indexOf(document.activeElement);
+    if (index !== -1) {
+      if (e.key === "Enter" || e.key === "ArrowDown") {
+        e.preventDefault();
+        if (index < campos.length - 1) campos[index + 1].focus();
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (index > 0) campos[index - 1].focus();
+      }
+    }
+    if (e.ctrlKey && e.key.toLowerCase() === "g") {
+      e.preventDefault();
+      guardarMovimiento();
+    }
+  });
+</script>
+</body>
+</html>
